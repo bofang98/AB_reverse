@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader
 from torch import nn, optim
 import os
 from model import c3d
+from model import sscn
 from dataset.data import ReverseDataSet
 import random
 import numpy as np
@@ -98,18 +99,20 @@ def load_pretrained_weights(ckpt_path):
 
 def test_model(model, pretrain_path):
     print(pretrain_path)
-    model.load_state_dict(torch.load(pretrain_path, map_location='cpu'), strict=True)
+    base = model.load_state_dict(torch.load(pretrain_path, map_location='cpu'), strict=True)
+    fine_model = sscn.SSCN(base, with_classifier=True, num_classes=101)
+    
     test_dataset = ReverseDataSet(params['dataset'], mode="test")
     test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=False,
                              num_workers=params['num_workers'])
 
     if len(device_ids) > 1:
         print(torch.cuda.device_count())
-        model = nn.DataParallel(model)
-    model = model.cuda()
+        fine_model = nn.DataParallel(model)
+    fine_model = fine_model.cuda()
     criterion = nn.CrossEntropyLoss().cuda()
 
-    test(test_loader, model, criterion)
+    test(test_loader, fine_model, criterion)
 
 if __name__ == '__main__':
     print(1)
@@ -118,7 +121,8 @@ if __name__ == '__main__':
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    model = c3d.C3D(with_classifier=True, num_classes=101)
+
+    model = c3d.C3D(with_classifier=False)
 
     pretrain_path ="/home/fb/project/AB_reverse" \
                    "/ft_classify_UCF-101/_11-30-16-41" \

@@ -124,7 +124,7 @@ def validation(val_loader, model, criterion, optimizer, epoch):
             inputs = inputs.cuda()
             labels = labels.cuda()
 
-            outputs = model(inputs)
+            outputs = model(inputs, inputs)
             loss = criterion(outputs, labels)
             losses.update(loss.item(), inputs.size(0))
 
