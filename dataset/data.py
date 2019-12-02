@@ -30,7 +30,7 @@ class ReverseDataSet(data.Dataset):
         self.videos = []
         self.labels = []
         self.toPIL = transforms.ToPILImage()
-        self.split  ='1'
+        self.split = '1'
 
         class_idx_path = os.path.join(root, 'split', 'classInd.txt')
         self.class_idx2label = pd.read_csv(class_idx_path, header=None, sep=' ').set_index(0)[1]

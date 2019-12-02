@@ -11,9 +11,9 @@ from tqdm import tqdm
 save_path = "train_classify"
 gpu = [2, 3, 4, 5, 6, 7]
 device_ids = [2, 3, 4, 5, 6, 7]
-torch.cuda.set_device(gpu)
+#torch.cuda.set_device(gpu)
 os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3, 4, 5, 6, 7"
-params['batch_size'] = 8
+params['batch_size'] = 4
 params['num_workers'] = 4
 
 class AverageMeter(object):
@@ -120,9 +120,9 @@ if __name__ == '__main__':
     torch.cuda.manual_seed_all(seed)
     model = c3d.C3D(with_classifier=True, num_classes=101)
 
-    pretrain_path ="/data2/fb/project/AB_reverse" \
-                   "/ft_classify_UCF-101/_11-30-13-07" \
-                   "/best_acc_model_17.pth.tar"
+    pretrain_path ="/home/fb/project/AB_reverse" \
+                   "/ft_classify_UCF-101/_11-30-16-41" \
+                   "/best_acc_model_35.pth.tar"
 
     test_model(model, pretrain_path)
 

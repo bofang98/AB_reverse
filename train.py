@@ -2,6 +2,7 @@ from config import params
 from torch import nn, optim
 import os
 from model import c3d
+from model import sscn
 from dataset.data import ReverseDataSet
 import time
 import torch
@@ -157,12 +158,13 @@ def validation(val_loader, model, criterion, optimizer, epoch):
 
 
 def main():
-    model = c3d.C3D(with_classifier=True, num_classes=15)
+    base = c3d.C3D(with_classifier=False)
+    model = sscn.sscn(base, with_classifier=True, num_classes=15)
 
     start_epoch = 1
-    #pretrain_weight = loadcontinur_weights(pretrain_path)
+    # pretrain_weight = loadcontinur_weights(pretrain_path)
 
-   # model.load_state_dict(pretrain_weight, strict=False);
+    # model.load_state_dict(pretrain_weight, strict=False)
     # train
     train_dataset = ReverseDataSet(params['dataset'], mode="train")
     if params['data'] == 'UCF-101':
@@ -213,22 +215,21 @@ def main():
         val_loss, top1_avg = validation(val_loader, model, criterion, optimizer, epoch)
         if top1_avg >= best_acc:
             best_acc = top1_avg
-            print("i am best :", best_acc)
             best_epoch = epoch
             model_path = os.path.join(model_save_dir, 'best_acc_model_{}.pth.tar'.format(epoch))
-            torch.save(model.state_dict(), model_path)
+            torch.save(base.state_dict(), model_path)
 
             prev_best_acc_model_path = model_path
         if val_loss < prev_best_val_loss:
             model_path = os.path.join(model_save_dir, 'best_loss_model_{}.pth.tar'.format(epoch))
-            torch.save(model.state_dict(), model_path)
+            torch.save(base.state_dict(), model_path)
             prev_best_val_loss = val_loss
 
             prev_best_loss_model_path = model_path
         scheduler.step(val_loss)
         if epoch % 20 == 0:
             checkpoints = os.path.join(model_save_dir, str(epoch) + ".pth.tar")
-            torch.save(model.state_dict(), checkpoints)
+            torch.save(base.state_dict(), checkpoints)
             print("save_to:", checkpoints)
     print("best is :", best_acc, best_epoch)
 
