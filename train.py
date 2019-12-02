@@ -65,8 +65,8 @@ def train(train_loader, model, criterion, optimizer, epoch, writer):
 
         label = label.cuda()
         input = input.cuda()
-
-        output = model(input)
+        # SSCN(input, input)------>
+        output = model(input, input)
 
         loss = criterion(output, label)
         prec1, prec5 = accuracy(output.data, label, topk=(1, 5))
@@ -159,7 +159,7 @@ def validation(val_loader, model, criterion, optimizer, epoch):
 
 def main():
     base = c3d.C3D(with_classifier=False)
-    model = sscn.sscn(base, with_classifier=True, num_classes=15)
+    model = sscn.SSCN(base, with_classifier=True, num_classes=15)
 
     start_epoch = 1
     # pretrain_weight = loadcontinur_weights(pretrain_path)
