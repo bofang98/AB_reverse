@@ -3,18 +3,20 @@ from torch.utils.data import DataLoader
 from torch import nn, optim
 import os
 from model import c3d
-from model import sscn
+from model import ren
 from dataset.data import ReverseDataSet
 import random
 import numpy as np
 import torch
 from tqdm import tqdm
+from torch.autograd import Variable
+
 save_path = "train_classify"
-gpu = [2, 3, 4, 5, 6, 7]
-device_ids = [2, 3, 4, 5, 6, 7]
-#torch.cuda.set_device(gpu)
-os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3, 4, 5, 6, 7"
-params['batch_size'] = 4
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "4, 5, 6, 7"
+device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
+
+params['batch_size'] = 16
 params['num_workers'] = 4
 
 class AverageMeter(object):
@@ -57,11 +59,11 @@ def test(test_loader, model, criterion):
     top1 = AverageMeter()
 
     for step, (inputs, labels) in enumerate(test_loader):
-        labels = labels.cuda()
-        inputs = inputs.cuda()
+        labels = Variable(labels).to(device)
+        inputs = Variable(inputs).to(device)
         outputs = []
         for clip in inputs:
-            clip = clip.cuda()
+            clip = clip.to(device)
             out = model(clip)
             out = torch.mean(out, dim=0)
 
@@ -69,7 +71,7 @@ def test(test_loader, model, criterion):
         outputs = torch.stack(outputs)
 
         loss = criterion(outputs, labels)
-        # compute loss and acc
+
         total_loss += loss.item()
 
         pts = torch.argmax(outputs, dim=1)
@@ -79,9 +81,7 @@ def test(test_loader, model, criterion):
         print(correct)
 
     avg_loss = total_loss / len(test_loader)
-    # avg_loss = total_loss / (len(val_loader)+len(train_loader))
     avg_acc = correct / len(test_loader.dataset)
-    # avg_acc = correct / (len(val_loader.dataset)+len(train_loader.dataset))
     print('[TEST] loss: {:.3f}, acc: {:.3f}'.format(avg_loss, avg_acc))
     return avg_loss
 
@@ -99,20 +99,18 @@ def load_pretrained_weights(ckpt_path):
 
 def test_model(model, pretrain_path):
     print(pretrain_path)
-    base = model.load_state_dict(torch.load(pretrain_path, map_location='cpu'), strict=True)
-    fine_model = sscn.SSCN(base, with_classifier=True, num_classes=101)
-    
+    model.load_state_dict(torch.load(pretrain_path, map_location='cpu'), strict=True)
+
     test_dataset = ReverseDataSet(params['dataset'], mode="test")
     test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=False,
                              num_workers=params['num_workers'])
 
-    if len(device_ids) > 1:
-        print(torch.cuda.device_count())
-        fine_model = nn.DataParallel(model)
-    fine_model = fine_model.cuda()
-    criterion = nn.CrossEntropyLoss().cuda()
+    model = nn.DataParallel(model, device_ids=[4,5,6,7])
 
-    test(test_loader, fine_model, criterion)
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss().to(device)
+    test(test_loader, model, criterion)
+
 
 if __name__ == '__main__':
     print(1)
@@ -122,7 +120,7 @@ if __name__ == '__main__':
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    model = c3d.C3D(with_classifier=False)
+    model = ren.REN(with_classifier=True, num_classes=101)
 
     pretrain_path ="/home/fb/project/AB_reverse" \
                    "/ft_classify_UCF-101/_11-30-16-41" \

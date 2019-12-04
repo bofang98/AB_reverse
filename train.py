@@ -2,19 +2,21 @@ from config import params
 from torch import nn, optim
 import os
 from model import c3d
-from model import sscn
+from model import ren
 from dataset.data import ReverseDataSet
 import time
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader, random_split
+from torch.autograd import Variable
 import random
 import numpy as np
 from tensorboardX import SummaryWriter
 
 save_path = params['save_path_base'] + 'ft_classify_' + params['data']
 
-os.environ["CUDA_VISIBLE_DEVISES"] = "6,7"
+os.environ["CUDA_VISIBLE_DEVISES"] = "4,5,6,7"
+device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -63,10 +65,10 @@ def train(train_loader, model, criterion, optimizer, epoch, writer):
     for step, (input, label) in enumerate(train_loader):
         data_time.update(time.time() - end)
 
-        label = label.cuda()
-        input = input.cuda()
-        # SSCN(input, input)------>
-        output = model(input, input)
+        label = Variable(label).to(device)
+        input = Variable(input).to(device)
+
+        output = model(input)
 
         loss = criterion(output, label)
         prec1, prec5 = accuracy(output.data, label, topk=(1, 5))
@@ -121,10 +123,10 @@ def validation(val_loader, model, criterion, optimizer, epoch):
         for step, (inputs, labels) in enumerate(val_loader):
             data_time.update(time.time() - end)
 
-            inputs = inputs.cuda()
-            labels = labels.cuda()
+            inputs = Variable(inputs).to(device)
+            labels = Variable(labels).to(device)
 
-            outputs = model(inputs, inputs)
+            outputs = model(inputs)
             loss = criterion(outputs, labels)
             losses.update(loss.item(), inputs.size(0))
 
@@ -159,7 +161,7 @@ def validation(val_loader, model, criterion, optimizer, epoch):
 
 def main():
     base = c3d.C3D(with_classifier=False)
-    model = sscn.SSCN(base, with_classifier=True, num_classes=15)
+    model = ren.REN(base, with_classifier=True, num_classes=15)
 
     start_epoch = 1
     # pretrain_weight = loadcontinur_weights(pretrain_path)
@@ -180,8 +182,9 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=params['batch_size'], shuffle=True,
                             num_workers=params['num_workers'])
 
-    model = model.cuda()
-    criterion = nn.CrossEntropyLoss().cuda()
+    model = nn.DataParallel(model, device_ids=[4,5,6,7])  #multi-gpu
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.SGD(model.parameters(), lr=params['learning_rate'], momentum=params['momentum'],
                           weight_decay=params['weight_decay'])
     #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
@@ -197,7 +200,7 @@ def main():
         clip, label = data
         writer.add_video('train/clips', clip, 0, fps=8)
         writer.add_text('train/idx', str(label.tolist()), 0)
-        clip = clip.cuda()
+        clip = clip.to(device)
         #writer.add_graph(model, (clip, clip));
         break
     for name, param in model.named_parameters():
@@ -217,19 +220,19 @@ def main():
             best_acc = top1_avg
             best_epoch = epoch
             model_path = os.path.join(model_save_dir, 'best_acc_model_{}.pth.tar'.format(epoch))
-            torch.save(base.state_dict(), model_path)
+            torch.save(model.state_dict(), model_path)
 
             prev_best_acc_model_path = model_path
         if val_loss < prev_best_val_loss:
             model_path = os.path.join(model_save_dir, 'best_loss_model_{}.pth.tar'.format(epoch))
-            torch.save(base.state_dict(), model_path)
+            torch.save(model.state_dict(), model_path)
             prev_best_val_loss = val_loss
 
             prev_best_loss_model_path = model_path
         scheduler.step(val_loss)
         if epoch % 20 == 0:
             checkpoints = os.path.join(model_save_dir, str(epoch) + ".pth.tar")
-            torch.save(base.state_dict(), checkpoints)
+            torch.save(model.state_dict(), checkpoints)
             print("save_to:", checkpoints)
     print("best is :", best_acc, best_epoch)
 

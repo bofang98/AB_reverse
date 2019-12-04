@@ -107,8 +107,9 @@ class ReverseDataSet(data.Dataset):
                 frame = self.transforms(frame)
                 video_clips.append(frame)
             # video_clips, which is a list, contains 16 tensors
-            #clip = torch.stack(video_clips).permute(1, 0, 2, 3)
-            #clip = torch.stack(video_clips)
+            clip = torch.stack(video_clips).permute(1, 0, 2, 3)
+
+            '''
             part = []
             divide_frame = random.randint(0, 14)
             for j in range(divide_frame + 1, 16):
@@ -119,6 +120,7 @@ class ReverseDataSet(data.Dataset):
             #print('part_2: ', part)
             clip = torch.stack(part).permute(1, 0, 2, 3)
             label = divide_frame
+            '''
 
         elif self.mode == 'test':
             videodata, retrain = self.loadcvvideo(videoname, count_need=0)
@@ -129,9 +131,9 @@ class ReverseDataSet(data.Dataset):
                 videoname = self.test_split[index]
                 videodata, retrain = self.loadcvvideo(videoname, count_need=16)
             clip = self.gettest(videodata)
-            label = self.class_label2idx[videoname[:videoname.find('/')]]
+        label = self.class_label2idx[videoname[:videoname.find('/')]]
 
-        return clip, label
+        return clip, label-1
 
     def randomflip(self, buffer):
         if np.random.random() <0.5:
@@ -160,13 +162,13 @@ class ReverseDataSet(data.Dataset):
                     # (T x C X H x W) to (C X T x H x W)
                 clip = torch.stack(trans_clip).permute([1, 0, 2, 3])
                 all_clips.append(clip)
-        print('all_clips:', all_clips)
+        #print('all_clips:', all_clips)
         return torch.stack(all_clips)
 
 
 if __name__ == '__main__':
 
-    data = ReverseDataSet(params['dataset'], mode='test')
+    data = ReverseDataSet(params['dataset'], mode='train')
     train_data = DataLoader(data, batch_size=8, num_workers=4, shuffle=True)
 
     for i, (clip, label) in enumerate(train_data):
@@ -174,6 +176,6 @@ if __name__ == '__main__':
         print('clip: ', clip.shape)
         print('label: ', label)
         print('------------------------------------------------')
-        if i == 0:
+        if i == 10:
             break
 

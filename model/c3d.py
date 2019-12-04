@@ -34,7 +34,7 @@ class C3D(nn.Module):
 
         self.conv5_1 = conv3d(512, 512)
         self.conv5_2 = conv3d(512, 512)
-        self.pool5 = nn.AdaptiveAvgPool3d(1)
+        #self.pool5 = nn.AdaptiveAvgPool3d(1)
         if self.return_feature:
             self.feature_pool = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2))  # 9216
         if self.with_classifier:
@@ -64,21 +64,19 @@ class C3D(nn.Module):
         if self.return_feature == True:
             x = self.feature_pool(x)
             return x.view(x.shape[0], -1)
-        x = self.pool5(x)
-        out = x.view(-1, 512)
-
+        # x = self.pool5(x)
+        # x = x.view(-1, 512)
 
         if self.with_classifier == True:
-            out = self.linear(out)
-        # print(x1.shape)
+            x = self.linear(x)
 
-        return out
+        return x
 
 
 if __name__ == '__main__':
-    input_tensor = torch.autograd.Variable(torch.rand(1, 3, 16, 112, 112).cuda())
+    input_tensor = torch.autograd.Variable(torch.rand(4, 3, 16, 112, 112).cuda())
 
-    c3d = C3D(with_classifier=True, num_classes=101)
+    c3d = C3D(with_classifier=True, num_classes=15)
     c3d = c3d.cuda()
     output = c3d(input_tensor)
 
