@@ -16,7 +16,7 @@ from collections import OrderedDict
 
 save_path = params['save_path_base'] + 'finetune_model_' + params['data']
 
-os.environ["CUDA_VISIBLE_DEVISES"] = "1,3,4,7"
+os.environ["CUDA_VISIBLE_DEVISES"] = "1,2"
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 params['epoch_num'] = 150
@@ -166,6 +166,7 @@ def load_pretrain_weight(con_path):
     adjusted_weights = {}
     state_dict = torch.load(con_path, map_location="cpu")
     for name, param in state_dict.items():
+        print(name)
         if "module.base_network" in name:
             name = name[name.find('.') + 14:]
             adjusted_weights[name] = param
@@ -215,13 +216,13 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=params['batch_size'], shuffle=True,
                             num_workers=params['num_workers'])
 
-    model = nn.DataParallel(model, device_ids=[1,3,4,7])  #multi-gpu
+    model = nn.DataParallel(model, device_ids=[1,2])  #multi-gpu
     model = model.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
 
     optimizer = torch.optim.SGD(model.parameters(), lr=params['learning_rate'], momentum=params['momentum'], weight_decay=params['weight_decay'])
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', min_lr=1e-7, patience=50, factor=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
 
 
     model_save_dir = os.path.join(save_path, '_' + time.strftime('%m-%d-%H-%M'))
