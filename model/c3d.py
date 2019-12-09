@@ -34,7 +34,7 @@ class C3D(nn.Module):
 
         self.conv5_1 = conv3d(512, 512)
         self.conv5_2 = conv3d(512, 512)
-        #self.pool5 = nn.AdaptiveAvgPool3d(1)
+        self.pool5 = nn.AdaptiveAvgPool3d(1)
         if self.return_feature:
             self.feature_pool = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2))  # 9216
         if self.with_classifier:
@@ -64,10 +64,11 @@ class C3D(nn.Module):
         if self.return_feature == True:
             x = self.feature_pool(x)
             return x.view(x.shape[0], -1)
-        # x = self.pool5(x)
-        # x = x.view(-1, 512)
+
 
         if self.with_classifier == True:
+            x = self.pool5(x)
+            x = x.view(-1, 512)
             x = self.linear(x)
 
         return x

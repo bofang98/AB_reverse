@@ -16,10 +16,11 @@ from collections import OrderedDict
 
 save_path = params['save_path_base'] + 'finetune_model_' + params['data']
 
-os.environ["CUDA_VISIBLE_DEVISES"] = "4,5,6,7"
-device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
+os.environ["CUDA_VISIBLE_DEVISES"] = "1,3,4,7"
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
-params['epoch'] = 100
+params['epoch_num'] = 150
+params['batch_size'] = 8
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -55,31 +56,6 @@ def accuracy(output, target, topk=(1, )):
         correct_k =correct[:k].view(-1).float().sum(0)
         res.append((correct_k.mul_(100.0 / batch_size)))
     return res
-
-
-
-def initialize_model(model, pretrain_path, num_classes):
-
-    state_dict = torch.load(pretrain_path, map_location="cpu")
-    new_state_dict = OrderedDict()
-    for k, v in state_dict.items():
-        name = k[7:]
-        new_state_dict[name] = v
-
-    model.load_state_dict(new_state_dict)
-
-    for param in model.parameters():
-        param.requires_grad = False
-
-    for param in model.fc6.parameters():
-        param.requires_grad = True
-
-    channel_in = model.fc6.in_features
-    model.fc6 = nn.Linear(channel_in, num_classes)
-    print(model)
-
-    return model
-
 
 
 def train(train_loader, model, criterion, optimizer, epoch, writer):
@@ -186,14 +162,39 @@ def validation(val_loader, model, criterion, optimizer, epoch):
     avg_loss = total_loss / len(val_loader)
     return avg_loss, top1.avg
 
+def load_pretrain_weight(con_path):
+    adjusted_weights = {}
+    state_dict = torch.load(con_path, map_location="cpu")
+    for name, param in state_dict.items():
+        if "module.base_network" in name:
+            name = name[name.find('.') + 14:]
+            adjusted_weights[name] = param
+    return adjusted_weights
+
+
+def initialize(pretrain_path):
+
+    adjusted_weights = {}
+    state_dict = torch.load(pretrain_path, map_location="cpu")
+    for name, param in state_dict.items():
+        if "module" in name:
+            name = name[name.find('.') + 1:]
+        adjusted_weights[name] = param
+
+    return adjusted_weights
+
 
 def main():
     pretrain_path = "/home/fb/project/AB_reverse" \
                     "/ft_classify_UCF-101/_12-02-16-36" \
-                    "/best_acc_model_180.pth.tar"
-    base = c3d.C3D(with_classifier=False)
-    model = ren.REN(base, with_classifier=True)
-    model_ft = initialize_model(model, pretrain_path, num_classes=101)
+                    "/200.pth.tar"
+    best_loss_path = "/home/fb/project/AB_reverse" \
+                    "/ft_classify_UCF-101/_12-02-16-36" \
+                    "/best_loss_model_180.pth.tar"
+    model = c3d.C3D(with_classifier=True, num_classes=101)
+    pretrain_weight = load_pretrain_weight(pretrain_path)
+    model.load_state_dict(pretrain_weight, strict=False)
+
 
     start_epoch = 1
     # pretrain_weight = loadcontinur_weights(pretrain_path)
@@ -214,16 +215,13 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=params['batch_size'], shuffle=True,
                             num_workers=params['num_workers'])
 
-    model_ft = nn.DataParallel(model_ft, device_ids=[4,5,6,7])  #multi-gpu
-    model_ft = model_ft.to(device)
+    model = nn.DataParallel(model, device_ids=[1,3,4,7])  #multi-gpu
+    model = model.to(device)
     criterion = nn.CrossEntropyLoss().to(device)
 
-    optimizer_ft = torch.optim.SGD(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=0.001     # ?????????
-    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=params['learning_rate'], momentum=params['momentum'], weight_decay=params['weight_decay'])
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_ft, 'min', min_lr=1e-5, patience=20, factor=0.5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', min_lr=1e-7, patience=50, factor=0.5)
 
 
     model_save_dir = os.path.join(save_path, '_' + time.strftime('%m-%d-%H-%M'))
@@ -247,8 +245,8 @@ def main():
     best_acc = 0
     best_epoch = 0
     for epoch in tqdm(range(start_epoch, start_epoch + params['epoch_num'])):
-        train(train_loader, model_ft, criterion, optimizer_ft, epoch, writer)
-        val_loss, top1_avg = validation(val_loader, model, criterion, optimizer_ft, epoch)
+        train(train_loader, model, criterion, optimizer, epoch, writer)
+        val_loss, top1_avg = validation(val_loader, model, criterion, optimizer, epoch)
         if top1_avg >= best_acc:
             best_acc = top1_avg
             best_epoch = epoch

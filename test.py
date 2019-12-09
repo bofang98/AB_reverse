@@ -13,10 +13,11 @@ from torch.autograd import Variable
 
 save_path = "train_classify"
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "4, 5, 6, 7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
+device_ids=[4]
 
-params['batch_size'] = 16
+params['batch_size'] = 8
 params['num_workers'] = 4
 
 class AverageMeter(object):
@@ -59,11 +60,11 @@ def test(test_loader, model, criterion):
     top1 = AverageMeter()
 
     for step, (inputs, labels) in enumerate(test_loader):
-        labels = Variable(labels).to(device)
-        inputs = Variable(inputs).to(device)
+        labels = labels.cuda()
+        inputs = inputs.cuda()
         outputs = []
         for clip in inputs:
-            clip = clip.to(device)
+            clip = clip.cuda()
             out = model(clip)
             out = torch.mean(out, dim=0)
 
@@ -89,42 +90,44 @@ def load_pretrained_weights(ckpt_path):
 
     adjusted_weights = {}
     pretrained_weights = torch.load(ckpt_path, map_location='cpu')
-    for name, params in pretrained_weights.items():
+    for name, param in pretrained_weights.items():
         print(name)
-        # if "base_network" in name:
-        #     name = name[name.find('.')+1:]
-        adjusted_weights[name]=params
+        if "module" in name:
+            name = name[name.find('.')+1:]
+        adjusted_weights[name] = param
     return adjusted_weights
 
 
 def test_model(model, pretrain_path):
-    print(pretrain_path)
-    model.load_state_dict(torch.load(pretrain_path, map_location='cpu'), strict=True)
+    #print(pretrain_path)
+    pretrain_weight = load_pretrained_weights(pretrain_path)
+    model.load_state_dict(pretrain_weight, strict=True)
 
     test_dataset = ReverseDataSet(params['dataset'], mode="test")
     test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=False,
                              num_workers=params['num_workers'])
+    if len(device_ids)>1:
+        print(torch.cuda.device_count())
+        model = nn.DataParallel(model)
+    # model = nn.DataParallel(model, device_ids=[4,5,6,7])
 
-    model = nn.DataParallel(model, device_ids=[4,5,6,7])
-
-    model = model.to(device)
-    criterion = nn.CrossEntropyLoss().to(device)
+    model = model.cuda()
+    criterion = nn.CrossEntropyLoss().cuda()
     test(test_loader, model, criterion)
 
 
 if __name__ == '__main__':
-    print(1)
     seed = 632
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    model = ren.REN(with_classifier=True, num_classes=101)
+    model = c3d.C3D(with_classifier=True, num_classes=101)
 
     pretrain_path ="/home/fb/project/AB_reverse" \
-                   "/ft_classify_UCF-101/_11-30-16-41" \
-                   "/best_acc_model_35.pth.tar"
+                   "/finetune_model_UCF-101/_12-06-09-36" \
+                   "/best_loss_model_147.pth.tar"
 
     test_model(model, pretrain_path)
 

@@ -6,7 +6,7 @@ params['dataset'] = '/data2/data/video_data/UCF-101'
 
 params['num_classes'] = 15
 
-params['epoch_num'] = 300
+params['epoch_num'] = 150
 params['batch_size'] = 16
 params['num_workers'] = 4
 params['learning_rate'] = 0.001
